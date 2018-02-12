@@ -1,8 +1,21 @@
-package developertest
+package main
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strconv"
+	"strings"
 	"testing"
+
+	"./externalservice"
 )
+
+func checkResponseCode(t *testing.T, expected, actual int) {
+	if expected != actual {
+		t.Fatalf("Expected response code %d. Got %d\n", expected, actual)
+	}
+}
 
 func TestPOSTCallsAndReturnsJSONfromExternalServicePOST(t *testing.T) {
 	// Descirption
@@ -34,6 +47,44 @@ func TestPOSTCallsAndReturnsJSONfromExternalServicePOST(t *testing.T) {
 	// Assert that the externalservice.Client#POST was called 1 times with the
 	// provided `:id` and post body and that the returned Post (from
 	// externalservice.Client#POST) is written out as `application/json`.
+
+	req := httptest.NewRequest("POST", "/api/posts/87", nil)
+	req.Header.Add("Content-type", "application/x-www-form-urlencoded")
+
+	if err := req.ParseForm(); err != nil {
+		panic(err.Error())
+	}
+	req.Form.Add("title", "Hello World!")
+	req.Form.Add("description", "Lorem Ipsum Dolor Sit Amen.")
+
+	rec := httptest.NewRecorder()
+	s := Server{
+		Client: &externalservice.ClientImpl{
+			Posts: make(map[int]*externalservice.Post),
+		},
+	}
+	s.InitializeRoutes()
+	s.Router.ServeHTTP(rec, req)
+
+	if http.StatusCreated != rec.Code {
+		t.Fatalf("Expected response code %d. Got %d\n", http.StatusCreated, rec.Code)
+	}
+
+	// Response content-type should be 'application/json; charset=UTF-8'
+	if rec.Header().Get("Content-Type") != "application/json; charset=UTF-8" {
+		t.Error("Invalid response Content-Type")
+	}
+
+	postPayload := &externalservice.Post{
+		ID:          87,
+		Title:       "Hello World!",
+		Description: "Lorem Ipsum Dolor Sit Amen.",
+	}
+
+	// error message should be 'Post id already exists'
+	if _, err := s.Client.POST(87, postPayload); err == nil || err.Error() != "Post id already exists" {
+		t.Error("Should get error with message  'Post id already exists'")
+	}
 }
 
 func TestPOSTCallsAndReturnsErrorAsJSONFromExternalServiceGET(t *testing.T) {
@@ -76,4 +127,36 @@ func TestPOSTCallsAndReturnsErrorAsJSONFromExternalServiceGET(t *testing.T) {
 	//	}
 	//
 	// Note: *`:id` should be the actual `:id` in the original request.*
+
+	req := httptest.NewRequest("GET", "/api/posts/87", nil)
+	rec := httptest.NewRecorder()
+	s := Server{
+		Client: &externalservice.ClientImpl{
+			Posts: make(map[int]*externalservice.Post),
+		},
+	}
+	s.InitializeRoutes()
+	s.Router.ServeHTTP(rec, req)
+
+	// status code should be 400
+	if rec.Code != 400 {
+		t.Error("Status code should be 400")
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(rec.Body.String()), &result); err != nil {
+		t.Error("Invalid json response schema")
+	}
+
+	path := strings.Split(result["path"].(string), "/")
+
+	id, _ := strconv.Atoi(path[len(path)-1])
+	if id != 87 {
+		t.Error("Path should be the actual `:id` in the original request.")
+	}
+
+	// error message should be 'Post id already exists'
+	if _, err := s.Client.GET(87); err == nil || err.Error() != "Post not found" {
+		t.Error("Should get error with message 'Post not found'")
+	}
 }
