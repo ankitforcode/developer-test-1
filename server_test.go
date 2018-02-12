@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"./externalservice"
+	"github.com/ankitforcode/developer-test-1/externalservice"
 )
 
 func checkResponseCode(t *testing.T, expected, actual int) {

@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"./externalservice"
-	"./utils"
+	"github.com/ankitforcode/developer-test-1/externalservice"
+	"github.com/ankitforcode/developer-test-1/utils"
 	"github.com/gorilla/mux"
 )
 
